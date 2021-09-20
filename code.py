@@ -40,9 +40,9 @@ def process_command(command):
     global animation
     try:
         cmd = json.loads(command)
-        print(cmd)
+        #print(cmd)
     except ValueError:
-        print("Command wasn't json, shame")
+        print("ERR")
 
     if(cmd['animation'] == 'sparkle'):
         # Defaults
@@ -60,6 +60,7 @@ def process_command(command):
             num_sparkles = cmd['sparkles']
 
         animation = Sparkle(pixels, speed=speed, color=color, num_sparkles=num_sparkles)
+        print("OK")
 
     elif(cmd['animation'] == 'sparkle_pulse'):
         # Defaults
@@ -77,6 +78,7 @@ def process_command(command):
             period = cmd['period']
 
         animation = SparklePulse(pixels, speed=speed, color=color, period=period)
+        print("OK")
 
     elif(cmd['animation'] == 'rainbow_sparkle'):
         # Defaults
@@ -91,6 +93,7 @@ def process_command(command):
             num_sparkles = cmd['sparkles']
 
         animation = RainbowSparkle(pixels, speed=speed, num_sparkles=num_sparkles)
+        print("OK")
     elif(cmd['animation'] == 'rainbow'):
         # Defaults
         speed = 0.05
@@ -104,16 +107,17 @@ def process_command(command):
             period = cmd['period']
 
         animation = Rainbow(pixels, speed=speed, period=period)
+        print("OK")
     else:
         print("unknown command")
 
 
 
 
-print("Hello World!");
+
 while True:
     if supervisor.runtime.serial_bytes_available:
         value = input().strip()
-        print(f"Received: {value}\r")
+        #print(f"Received: {value}\r")
         process_command(value)
     animation.animate()

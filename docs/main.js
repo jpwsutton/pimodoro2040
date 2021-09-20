@@ -1,12 +1,37 @@
+/* Pomodoro Timer Code + Plasma2040 connect code 
+
+This is modified from the  Freshman-tech pomodoro timer tutorial
+found here: https://github.com/Freshman-tech/pomodoro-starter-files
+and: https://freshman.tech/pomodoro-timer/
+
+*/
+
+
+
+/* Timer defenitions */
 const timer = {
-    pomodoro: 1,
-    shortBreak: 1,
-    longBreak: 1,
+    pomodoro: 25,
+    shortBreak: 5,
+    longBreak: 15,
     longBreakInterval: 4,
     sessions: 0,
 };
-const buttonSound = new Audio('button-sound.mp3');
 
+/* This map defines the JSON commands sent to the plasma2040 to change the effects*/
+const sparkleJar = {
+    pomodoro: {animation: "sparkle", speed: 0.075, sparkles: 5},
+    shortBreak: {animation: "sparkle_pulse", color: {r: 0, g: 150, b: 150}},
+    longBreak: {animation: "rainbow", speed: 0.1, period: 10}
+}
+
+// Serial port object
+const serialPort = {
+    connected: false,
+    attempted: false
+}
+
+// Button Configuration
+const buttonSound = new Audio('button-sound.mp3');
 const mainButton = document.getElementById('js-btn');
 
 mainButton.addEventListener('click', ()=> {
@@ -19,6 +44,8 @@ mainButton.addEventListener('click', ()=> {
     }
 });
 
+
+// Mode button Configuration
 const modeButtons = document.querySelector('#js-mode-buttons');
 modeButtons.addEventListener('click', handleMode);
 
@@ -30,6 +57,7 @@ function handleMode(event){
 }
 
 
+// Update the clock
 function updateClock(){
     const { remainingTime } = timer;
     const minutes = `${remainingTime.minutes}`.padStart(2, '0');
@@ -50,6 +78,8 @@ function updateClock(){
 
 }
 
+
+// Switch Mode
 function switchMode(mode){
     timer.mode = mode;
     timer.remainingTime = {
@@ -63,11 +93,17 @@ function switchMode(mode){
     document.body.style.backgroundColor = `var(--${mode})`;
     document.getElementById('js-progress').setAttribute('max', timer.remainingTime.total);
 
+    // If the serial port is connected and available.
+    // Send the relevant command.
+    if(serialPort.connected === true){
+        writeToStream(JSON.stringify(sparkleJar[mode]));
+    }
     updateClock();
 }
 
 let interval;
 
+// Get the remaining time on the clock.
 function getRemainingTime(endTime){
     const currentTime = Date.parse(new Date());
     const difference = endTime - currentTime;
@@ -83,8 +119,18 @@ function getRemainingTime(endTime){
     };
 }
 
-
+// Start the timer
 function startTimer(){
+
+    if('serial' in navigator && serialPort.connected === false && serialPort.attempted === false){
+        try{
+            connectSerial();
+        } catch (err){
+            console.error('There was an error opening the serial port:', err);
+            serialPort.connected = false;
+            serialPort.attempted = true;
+        }
+    }
     let { total } = timer.remainingTime;
     const endTime = Date.parse(new Date()) + total * 1000;
 
@@ -104,9 +150,12 @@ function startTimer(){
 
             switch(timer.mode){
                 case 'pomodoro':
+                    console.log(timer);
                     if(timer.sessions % timer.longBreakInterval === 0){
+                        console.log('Long break');
                         switchMode('longBreak');
                     } else {
+                        console.log('Short break');
                         switchMode('shortBreak');
                     }
                     break;
@@ -127,10 +176,67 @@ function stopTimer(){
     clearInterval(interval);
 
     mainButton.dataset.action = 'start';
-    mainButton.textContent = 'stop';
+    mainButton.textContent = 'start';
     mainButton.classList.remove('active');
 
 
+}
+
+async function readLoop(){
+    while(true){
+        const {value, done } = await serialPort.reader.read();
+        if(value) {
+            console.log( value);
+
+        } 
+        if(done){
+            console.log('[readloop] DONE', done);
+            serialPort.reader.releaseLock();
+            break;
+        }
+    }
+}
+
+function writeToStream(...lines){
+    const writer = serialPort.outputStream.getWriter();
+    lines.forEach((line) => {
+        console.log('[SEND]', line);
+        writer.write(line + '\n\r');
+    });
+    writer.releaseLock();
+}
+
+async function connectSerial(){
+    serialPort.attempted = true;
+    serialPort.connected = true;
+    try{
+    serialPort.port = await navigator.serial.requestPort();
+    await serialPort.port.open({baudRate: 9600});
+    
+    let decoder = new TextDecoderStream();
+    serialPort.inputDone = serialPort.port.readable.pipeTo(decoder.writable);
+    serialPort.inputStream = decoder.readable;
+
+    serialPort.reader = serialPort.inputStream.getReader();
+    readLoop();
+
+    const encoder = new TextEncoderStream();
+    serialPort.outputDone = encoder.readable.pipeTo(serialPort.port.writable);
+    serialPort.outputStream = encoder.writable;
+
+    writeToStream(JSON.stringify({animation: "sparkle", speed: 0.075, sparkles: 5}));
+
+    }   catch (err){
+        console.error('There was an error opening the serial port:', err);
+        serialPort.connected = false;
+        serialPort.attempted = true;
+    }
+
+
+   
+
+
+    
 }
 
 
@@ -142,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // If notification permissions have been neither granted or denied
         if(Notification.permission !== 'granted' && Notification.permission !== 'denied'){
             // ask the user for permission
+            
             Notification.requestPermission().then(function(permission) {
                 // If permission is granted
                 if(permission === 'granted'){
@@ -153,6 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+
+
+    
+        
     switchMode('pomodoro');
 });
+
+
 
